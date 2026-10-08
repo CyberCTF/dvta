@@ -1,0 +1,17 @@
+{
+  "title": "DVTA, Damn Vulnerable Thick Client App",
+  "description": "A vulnerable .NET Windows thick client (an expense tracker) with its SQL Server Express and FTP back end on a Windows Server 2019 machine, built from real-world thick client pentest findings: insecure local storage and logging, weak cryptography, exposed decryption logic, SQL and CSV injection, DLL hijacking, clear-text traffic and client-side controls bypassed by reversing.",
+  "question": "Enable the client's Configure button, then exploit the thick client's flaws to log in as admin.",
+  "category": "REV",
+  "difficulty": 2,
+  "evidence_kind": "SECRET",
+  "capabilities": ["thick-client-testing", "dotnet-reversing", "sql-injection", "dll-hijacking", "weak-cryptography", "traffic-interception"],
+  "providers": [
+    "virtualbox",
+    "vmware_desktop",
+    "parallels",
+    "vmware_esxi",
+    "aws",
+    "azure"
+  ]
+}

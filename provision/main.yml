@@ -1,0 +1,189 @@
+# Sets up DVTA's server side and client on win01 from the controller, as upstream's README and
+# set-up videos describe:
+#   - SQL Server 2019 Express, instance SQLEXPRESS, SQL authentication with the `sa` password the
+#     client ships encrypted in its config (p@ssw0rd), TCP on 1433 and the SQL Browser on, and
+#     the DVTA database with the README's `users` and `expenses` tables and users;
+#   - an FTP server for the admin's CSV upload (user dvta / p@ssw0rd, the credentials the client
+#     uses). Upstream's video uses FileZilla Server; this is Windows' own IIS FTP server, so no
+#     third-party download is needed;
+#   - the client: upstream's compiled release (DVTA/bin/Release, vendored) in C:\DVTA with a
+#     shortcut on every user's desktop. Its config is upstream's, unchanged: enabling the
+#     Configure button and pointing it at this server is the lab's first challenge;
+#   - RDP on, to play the client on the machine's desktop.
+- name: DVTA
+  hosts: target
+  gather_facts: false
+  vars:
+    sqlexpr_url: https://download.microsoft.com/download/7/c/1/7c14e92e-bdcb-4f89-b7cf-93543e7112d1/SQLEXPR_x64_ENU.exe
+    sqlexpr_sha256: bea033e778048748eb1c87bf57597f7f5449b6a15bac55ddc08263c57f7a1ca8
+    sa_password: p@ssw0rd
+    ftp_user: dvta
+    ftp_password: p@ssw0rd
+  tasks:
+    - name: Installer folder
+      ansible.windows.win_file:
+        path: C:\install
+        state: directory
+
+    - name: SQL Server 2019 Express installer
+      ansible.windows.win_get_url:
+        url: "{{ sqlexpr_url }}"
+        dest: C:\install\SQLEXPR_x64_ENU.exe
+        checksum: "{{ sqlexpr_sha256 }}"
+        checksum_algorithm: sha256
+
+    - name: Extract it
+      ansible.windows.win_command: C:\install\SQLEXPR_x64_ENU.exe /Q /x:C:\install\sqlexpr
+      args:
+        creates: C:\install\sqlexpr\SETUP.EXE
+
+    - name: Install SQL Server Express (instance SQLEXPRESS, SQL authentication, TCP on)
+      ansible.windows.win_command: >-
+        C:\install\sqlexpr\SETUP.EXE /Q /ACTION=Install /FEATURES=SQLEngine
+        /INSTANCENAME=SQLEXPRESS /SECURITYMODE=SQL /SAPWD="{{ sa_password }}"
+        /SQLSVCACCOUNT="NT AUTHORITY\NETWORK SERVICE" /SQLSYSADMINACCOUNTS="BUILTIN\Administrators"
+        /TCPENABLED=1 /BROWSERSVCSTARTUPTYPE=Automatic /UPDATEENABLED=False
+        /IACCEPTSQLSERVERLICENSETERMS
+      args:
+        creates: C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\Binn\sqlservr.exe
+      become: true
+      become_method: runas
+      become_user: SYSTEM
+
+    - name: SQLEXPRESS listens on TCP 1433 (a fixed port, next to the SQL Browser)
+      ansible.windows.win_powershell:
+        script: |
+          $k = 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQLServer\SuperSocketNetLib\Tcp\IPAll'
+          Set-ItemProperty $k -Name TcpDynamicPorts -Value ''
+          Set-ItemProperty $k -Name TcpPort -Value '1433'
+          Restart-Service 'MSSQL$SQLEXPRESS' -Force
+          Set-Service SQLBrowser -StartupType Automatic
+          Start-Service SQLBrowser
+
+    - name: Firewall, SQL Server
+      community.windows.win_firewall_rule:
+        name: "DVTA {{ item.name }}"
+        localport: "{{ item.port }}"
+        protocol: "{{ item.proto }}"
+        direction: in
+        action: allow
+        state: present
+        enabled: true
+      loop:
+        - { name: SQL Server, port: 1433, proto: tcp }
+        - { name: SQL Browser, port: 1434, proto: udp }
+
+    - name: The DVTA database, tables and users (README queries)
+      ansible.windows.win_powershell:
+        parameters:
+          Password: "{{ sa_password }}"
+        script: |
+          param([string]$Password)
+          function Invoke-Sql([string]$Database, [string]$Query) {
+            $c = New-Object System.Data.SqlClient.SqlConnection("Data Source=127.0.0.1\SQLEXPRESS;Initial Catalog=$Database;User Id=sa;Password=$Password")
+            $c.Open()
+            try { $cmd = $c.CreateCommand(); $cmd.CommandText = $Query; $cmd.ExecuteScalar() } finally { $c.Close() }
+          }
+          Invoke-Sql master "IF DB_ID('DVTA') IS NULL CREATE DATABASE DVTA" | Out-Null
+          Invoke-Sql DVTA @"
+          IF OBJECT_ID('dbo.users') IS NULL
+          BEGIN
+            CREATE TABLE "users" (
+              "id" INT IDENTITY(0,1) NOT NULL,
+              "username" VARCHAR(100) NOT NULL,
+              "password" VARCHAR(100) NOT NULL,
+              "email" VARCHAR(100) NULL DEFAULT NULL,
+              "isadmin" INT NULL DEFAULT '0',
+              PRIMARY KEY ("id")
+            );
+            INSERT INTO dbo.users (username, password, email, isadmin)
+            VALUES
+            ('admin','admin123','admin@damnvulnerablethickclientapp.com',1),
+            ('rebecca','rebecca','rebecca@test.com',0),
+            ('raymond','raymond','raymond@test.com',0);
+          END
+          "@ | Out-Null
+          Invoke-Sql DVTA @"
+          IF OBJECT_ID('dbo.expenses') IS NULL
+          CREATE TABLE "expenses" (
+            "id" INT IDENTITY(0,1) NOT NULL,
+            "email" VARCHAR(100) NOT NULL,
+            "item" VARCHAR(100) NOT NULL,
+            "price" VARCHAR(100) NOT NULL,
+            "date" VARCHAR(100) NOT NULL,
+            "time" VARCHAR(100) NULL DEFAULT NULL,
+            PRIMARY KEY ("id")
+          )
+          "@ | Out-Null
+          $n = Invoke-Sql DVTA "SELECT COUNT(*) FROM dbo.users"
+          if ($n -lt 3) { throw "users table has $n rows" }
+          $Ansible.Changed = $true
+
+    - name: FTP server feature
+      ansible.windows.win_feature:
+        name: [Web-Ftp-Server, Web-Mgmt-Console]
+        state: present
+
+    - name: FTP user
+      ansible.windows.win_user:
+        name: "{{ ftp_user }}"
+        password: "{{ ftp_password }}"
+        password_never_expires: true
+        groups: [Users]
+        state: present
+
+    - name: FTP site on port 21 (basic authentication, no TLS required, dvta may read and write)
+      ansible.windows.win_powershell:
+        parameters:
+          User: "{{ ftp_user }}"
+        script: |
+          param([string]$User)
+          # appcmd rather than the WebAdministration cmdlets: over WinRM, New-WebFtpSite leaves the
+          # site's root folder unset ("530 User cannot log in, home directory inaccessible").
+          $appcmd = "$env:windir\System32\inetsrv\appcmd.exe"
+          New-Item -ItemType Directory -Force C:\ftp | Out-Null
+          icacls C:\ftp /grant "${User}:(OI)(CI)M" | Out-Null
+          & $appcmd list site /name:DVTA | Out-Null
+          if ($LASTEXITCODE -ne 0) { & $appcmd add site /name:DVTA /bindings:ftp://*:21 /physicalPath:C:\ftp | Out-Null }
+          & $appcmd set vdir "DVTA/" /physicalPath:C:\ftp | Out-Null
+          & $appcmd set site DVTA /ftpServer.security.authentication.basicAuthentication.enabled:true | Out-Null
+          & $appcmd set site DVTA /ftpServer.security.ssl.controlChannelPolicy:SslAllow /ftpServer.security.ssl.dataChannelPolicy:SslAllow | Out-Null
+          & $appcmd clear config DVTA /section:system.ftpServer/security/authorization /commit:apphost | Out-Null
+          & $appcmd set config DVTA /section:system.ftpServer/security/authorization "/+[accessType='Allow',users='$User',permissions='Read,Write']" /commit:apphost | Out-Null
+          netsh advfirewall set global StatefulFtp enable | Out-Null
+          Restart-Service ftpsvc
+          $Ansible.Changed = $true
+
+    - name: Firewall, FTP
+      community.windows.win_firewall_rule:
+        name: DVTA FTP
+        localport: "21"
+        protocol: tcp
+        direction: in
+        action: allow
+        state: present
+        enabled: true
+
+    - name: The client (upstream's compiled release)
+      ansible.windows.win_copy:
+        src: ../dvta/DVTA/bin/Release/
+        dest: C:\DVTA\
+
+    - name: Shortcut on every user's desktop
+      ansible.windows.win_powershell:
+        script: |
+          $s = (New-Object -ComObject WScript.Shell).CreateShortcut('C:\Users\Public\Desktop\DVTA.lnk')
+          $s.TargetPath = 'C:\DVTA\DVTA.exe'
+          $s.WorkingDirectory = 'C:\DVTA'
+          $s.Save()
+
+    - name: RDP
+      ansible.windows.win_powershell:
+        script: |
+          Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 0
+          Enable-NetFirewallRule -DisplayGroup 'Remote Desktop'
+
+    - name: Remove the installer files
+      ansible.windows.win_file:
+        path: C:\install
+        state: absent

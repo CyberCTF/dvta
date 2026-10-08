@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://www.isoloom.com/schema/v1.json
+# DVTA, Damn Vulnerable Thick Client App (by Srinivas, srini0x00): a .NET Windows client for an
+# expense tracker, with SQL Server and FTP on the back end, built to teach thick client testing
+# (local storage, weak crypto, SQL injection, DLL hijacking, clear-text traffic, reversing).
+# Source: https://github.com/srini0x00/dvta, vendored in dvta/. One Windows Server 2019 machine
+# set up by provision/main.yml from a controller Isoloom adds: SQL Server 2019 Express, an FTP
+# server and upstream's compiled client on the desktop. VM targets only.
+# `isoloom run vagrant`, then `isoloom test vagrant`.
+version: 1
+name: dvta
+
+networks:
+  lab: { cidr: 10.60.204.0/24 }
+
+machines:
+  win01:
+    networks: { lab: 10 }
+    services:
+      - { port: 1433, name: sql-server }
+      - { port: 21, name: ftp }
+      - { port: 3389, name: rdp }
+    resources: { cpus: 2, memory_mb: 4096 }
+    vm:
+      os: windows-server-2019
+
+provision:
+  - ansible: provision/main.yml
+    requirements: provision/requirements.yml
+    groups:
+      target: [win01]
+
+checks:
+  - { name: sql server answers, tcp: "win01:1433", wait: 300 }
+  - { name: ftp answers, tcp: "win01:21" }
+  - { name: rdp answers, tcp: "win01:3389" }
+  - checks/ftp-login.sh
+
+message: |
+  DVTA is installed on {{ machines.win01.addresses.lab }}: RDP to it as vagrant/vagrant and start
+  DVTA from the desktop. Its back end runs on the same machine (SQL Server Express instance
+  SQLEXPRESS, FTP on 21). First challenge: the Configure button is disabled; enable it, then
+  set the server to 127.0.0.1. Users: rebecca/rebecca, raymond/raymond, admin/admin123.
