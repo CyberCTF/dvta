@@ -99,7 +99,8 @@
       "cloud-docker": "needs `docker:` on win01",
       "kubernetes": "needs `docker:` on win01",
       "hybrid": "only when some machines are containers and others are VMs",
-      "external": "needs `external:` on win01"
+      "external": "needs `external:` on win01",
+      "cloud-services": "left out by `targets:`"
     }
   },
   "checks": {
