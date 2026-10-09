@@ -5,7 +5,6 @@
   "category": "REV",
   "difficulty": 2,
   "evidence_kind": "SECRET",
-  "capabilities": ["thick-client-testing", "dotnet-reversing", "sql-injection", "dll-hijacking", "weak-cryptography", "traffic-interception"],
   "providers": [
     "virtualbox",
     "vmware_desktop",
