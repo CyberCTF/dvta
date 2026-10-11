@@ -9,6 +9,9 @@
 version: 1
 name: dvta
 
+# Given by the CyberCTF launcher: this player's flag. Without it the development flag.
+inputs: [CTF_FLAG_MAIN]
+
 networks:
   lab: { cidr: 10.60.204.0/24 }
 
@@ -20,8 +23,11 @@ machines:
       - { port: 21, name: ftp }
       - { port: 3389, name: rdp }
     resources: { cpus: 2, memory_mb: 4096 }
+    inputs: [CTF_FLAG_MAIN]
     vm:
       os: windows-server-2019
+      # The player's flag, an expense of the admin user in the DVTA database (with the playbook).
+      provision: [provision/flag.ps1]
 
 provision:
   - ansible: provision/main.yml

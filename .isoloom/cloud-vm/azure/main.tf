@@ -54,6 +54,12 @@ variable "expires_at" {
   default     = ""
   description = "When the environment should end, in Unix seconds (empty: no end), as a tag on every resource so a reaper can find what to destroy"
 }
+variable "inputs" {
+  type        = map(string)
+  default     = {}
+  sensitive   = true
+  description = "Values given at launch"
+}
 
 provider "azurerm" {
   features {}
@@ -219,7 +225,11 @@ resource "terraform_data" "win01" {
     inline = [var.auto_stop_minutes > 0 ? "powershell -NoProfile -Command \"Register-ScheduledTask -TaskName isoloom-auto-stop -Action (New-ScheduledTaskAction -Execute shutdown.exe -Argument '/s /t 0') -Trigger (New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(${var.auto_stop_minutes})) -User SYSTEM -RunLevel Highest -Force\"" : "cmd /c ver"]
   }
   provisioner "file" {
-    content     = "$ErrorActionPreference = 'Stop'\nif ($env:COMPUTERNAME -ne 'WIN01') { throw \"still named $env:COMPUTERNAME: the rename hasn't taken effect\" }\nNew-NetFirewallRule -DisplayName 'isoloom 1433' -Direction Inbound -Protocol TCP -LocalPort 1433 -Action Allow | Out-Null\nNew-NetFirewallRule -DisplayName 'isoloom 21' -Direction Inbound -Protocol TCP -LocalPort 21 -Action Allow | Out-Null\nNew-NetFirewallRule -DisplayName 'isoloom 3389' -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow | Out-Null\nNew-Item -ItemType Directory -Force C:\\ProgramData\\isoloom | Out-Null; Set-Content C:\\ProgramData\\isoloom\\ready 'ready'\n"
+    source      = "${local.root}/provision/flag.ps1"
+    destination = "C:/isoloom/provision/flag.ps1"
+  }
+  provisioner "file" {
+    content     = "$ErrorActionPreference = 'Stop'\nif ($env:COMPUTERNAME -ne 'WIN01') { throw \"still named $env:COMPUTERNAME: the rename hasn't taken effect\" }\nNew-NetFirewallRule -DisplayName 'isoloom 1433' -Direction Inbound -Protocol TCP -LocalPort 1433 -Action Allow | Out-Null\nNew-NetFirewallRule -DisplayName 'isoloom 21' -Direction Inbound -Protocol TCP -LocalPort 21 -Action Allow | Out-Null\nNew-NetFirewallRule -DisplayName 'isoloom 3389' -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow | Out-Null\nNew-Item -ItemType Directory -Force C:\\ProgramData\\isoloom | Out-Null; Set-Content C:\\ProgramData\\isoloom\\ready 'ready'\n& powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\\isoloom\\provision\\flag.ps1'; if ($LASTEXITCODE) { exit $LASTEXITCODE }\n"
     destination = "C:/isoloom/setup.ps1"
   }
   provisioner "remote-exec" {

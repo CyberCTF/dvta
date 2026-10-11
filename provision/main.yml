@@ -9,7 +9,8 @@
 #   - the client: upstream's compiled release (DVTA/bin/Release, vendored) in C:\DVTA with a
 #     shortcut on every user's desktop. Its config is upstream's, unchanged: enabling the
 #     Configure button and pointing it at this server is the lab's first challenge;
-#   - RDP on, to play the client on the machine's desktop.
+#   - RDP on, to play the client on the machine's desktop;
+#   - the player's flag as an expense of the admin user (see provision/flag.ps1).
 - name: DVTA
   hosts: target
   gather_facts: false
@@ -117,6 +118,26 @@
           "@ | Out-Null
           $n = Invoke-Sql DVTA "SELECT COUNT(*) FROM dbo.users"
           if ($n -lt 3) { throw "users table has $n rows" }
+          $Ansible.Changed = $true
+
+    - name: Flag (the player's, left by provision/flag.ps1), an expense of the admin user
+      ansible.windows.win_powershell:
+        parameters:
+          Password: "{{ sa_password }}"
+        script: |
+          param([string]$Password)
+          $file = 'C:\ctf\flag.txt'
+          if (-not (Test-Path $file)) { $Ansible.Changed = $false; return }
+          $flag = [IO.File]::ReadAllText($file).Trim()
+          $c = New-Object System.Data.SqlClient.SqlConnection("Data Source=127.0.0.1\SQLEXPRESS;Initial Catalog=DVTA;User Id=sa;Password=$Password")
+          $c.Open()
+          try {
+            $cmd = $c.CreateCommand()
+            $cmd.CommandText = "DELETE FROM dbo.expenses WHERE email = 'admin@damnvulnerablethickclientapp.com'; INSERT INTO dbo.expenses (email, item, price, date, time) VALUES ('admin@damnvulnerablethickclientapp.com', @flag, '0', '01/01/2020', '00:00')"
+            $cmd.Parameters.AddWithValue('@flag', $flag) | Out-Null
+            $cmd.ExecuteNonQuery() | Out-Null
+          } finally { $c.Close() }
+          Remove-Item -Recurse -Force 'C:\ctf'
           $Ansible.Changed = $true
 
     - name: FTP server feature

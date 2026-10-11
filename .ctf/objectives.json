@@ -1,0 +1,68 @@
+{
+  "objectives": [
+    {
+      "key": "main",
+      "title": "Read the flag",
+      "prompt": "Get past the DVTA client's controls and read the flag: it is an expense recorded for the admin user in DVTA's database.",
+      "check": {
+        "evidence": "SECRET",
+        "format": "FLAG{%s}"
+      },
+      "dev": "FLAG{dev-dvta}",
+      "hints": [
+        "The client is a .NET program: a .NET decompiler shows how it enables its Configure button and how it reaches the database.",
+        "The admin's screen exports every expense; the client also carries what it needs to talk to the database itself."
+      ],
+      "steps": [
+        {
+          "key": "runtime",
+          "title": "Identify the client",
+          "prompt": "On which framework is the DVTA client built? (name)",
+          "check": {
+            "answer": [
+              ".net",
+              "net",
+              "dotnet",
+              ".net framework",
+              "c#"
+            ]
+          }
+        },
+        {
+          "key": "config",
+          "title": "Find the stored secret",
+          "prompt": "Which application setting in the client's config file holds the encrypted database password? (setting name)",
+          "check": {
+            "answer": [
+              "dbpassword"
+            ]
+          }
+        },
+        {
+          "key": "cipher",
+          "title": "Name the cipher",
+          "prompt": "Which symmetric cipher protects that password? (name)",
+          "check": {
+            "answer": [
+              "aes",
+              "aes-256",
+              "aes256",
+              "rijndael"
+            ]
+          }
+        },
+        {
+          "key": "login",
+          "title": "Name the login flaw",
+          "prompt": "Which vulnerability class does the login form's database query have?",
+          "check": {
+            "answer": [
+              "sql injection",
+              "sqli"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

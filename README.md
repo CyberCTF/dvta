@@ -29,6 +29,10 @@ Users: rebecca/rebecca, raymond/raymond, admin/admin123. The database login is `
 `p@ssw0rd` and the FTP account `dvta` / `p@ssw0rd`, as upstream's set-up. Upstream's video
 uses FileZilla Server for FTP; this lab uses Windows' own IIS FTP server.
 
+The flag (the player's `CTF_FLAG_MAIN`, a development value without one) is an expense of the
+admin user in the DVTA database, written by [`provision/flag.ps1`](provision/flag.ps1) and the
+playbook.
+
 Lab guide: upstream's [README](dvta/README.md) and its set-up videos.
 Upstream version and commit: [UPSTREAM.md](UPSTREAM.md).
 
