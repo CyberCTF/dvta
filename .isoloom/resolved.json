@@ -1,6 +1,6 @@
 {
   "generated_by_isoloom": "from isoloom.yml; don't edit: change the spec and run `isoloom generate` (`isoloom check` fails when this file is out of date)",
-  "resolved_version": 1,
+  "resolved_version": 3,
   "name": "dvta",
   "instance": null,
   "inputs": [
@@ -25,6 +25,7 @@
       "shapes": [
         "vm"
       ],
+      "role": "target",
       "arch": "amd64",
       "os": "windows-server-2019",
       "windows": true,
@@ -34,30 +35,22 @@
       "docker_addresses": {
         "lab": "10.60.204.10"
       },
-      "services": [
-        {
+      "ports": {
+        "sql-server": {
           "port": 1433,
-          "name": "sql-server",
-          "http": false,
-          "publish": null
+          "protocol": "tcp"
         },
-        {
+        "ftp": {
           "port": 21,
-          "name": "ftp",
-          "http": false,
-          "publish": null
+          "protocol": "tcp"
         },
-        {
+        "rdp": {
           "port": 3389,
-          "name": "rdp",
-          "http": false,
-          "publish": null
+          "protocol": "tcp"
         }
-      ],
+      },
       "depends_on": [],
-      "inputs": [
-        "CTF_FLAG_MAIN"
-      ],
+      "inputs": [],
       "volumes": {},
       "resources": {
         "cpus": 2,
@@ -67,7 +60,9 @@
       "gateway_of": [],
       "routes": [],
       "default_gateway": null,
-      "offline": false
+      "offline": false,
+      "os_family": "windows-server",
+      "os_version": "2019"
     }
   },
   "start_order": [
@@ -78,6 +73,8 @@
   "groups": {},
   "router": null,
   "controller": {
+    "role": "infra",
+    "keep_running": false,
     "addresses": {
       "lab": "10.60.204.253"
     }
@@ -87,24 +84,39 @@
     "possible": [
       "vagrant",
       "proxmox",
+      "esxi",
       "cloud-vm"
     ],
     "generated": [
       "vagrant",
+      "proxmox",
+      "esxi",
       "cloud-vm"
     ],
-    "refused": {
-      "proxmox": "machine `win01`: no Proxmox image for `windows-server-2019` yet (Debian, Ubuntu, Rocky, AlmaLinux, CentOS 7)"
-    },
+    "refused": {},
     "not_possible": {
-      "docker": "needs `docker:` on win01",
-      "hosted": "needs `docker:` on win01",
-      "docker-vm": "needs `docker:` on win01",
-      "cloud-docker": "needs `docker:` on win01",
-      "kubernetes": "needs `docker:` on win01",
+      "docker": "machines.win01.os: Windows has no container form in 1.0",
+      "hosted": "machines.win01.os: Windows has no container form in 1.0",
+      "docker-vm": "machines.win01.os: Windows has no container form in 1.0",
+      "cloud-docker": "machines.win01.os: Windows has no container form in 1.0",
+      "kubernetes": "machines.win01.os: Windows has no container form in 1.0",
       "hybrid": "only when some machines are containers and others are VMs",
-      "external": "needs `external:` on win01",
+      "external": "overrides.external.machines.win01: the external target reaches machines that exist already, and `win01` names no host",
       "cloud-services": "left out by `targets:`"
+    },
+    "clouds": {
+      "cloud-vm": {
+        "generated": [
+          "aws",
+          "azure"
+        ],
+        "refused": {
+          "gcp": "machine `win01`: Windows on GCP comes later",
+          "digitalocean": "DigitalOcean cloud-vm is Linux only so far",
+          "linode": "Linode cloud-vm is Linux only so far",
+          "oci": "Oracle Cloud cloud-vm is Linux only so far"
+        }
+      }
     }
   },
   "checks": {
@@ -146,6 +158,30 @@
             "target": "checks/ftp-login.sh",
             "expect": "",
             "wait": 0
+          },
+          {
+            "name": "win01:1433 from the networks",
+            "derived": true,
+            "kind": "tcp",
+            "target": "10.60.204.10:1433",
+            "expect": "open",
+            "wait": 30
+          },
+          {
+            "name": "win01:21 from the networks",
+            "derived": true,
+            "kind": "tcp",
+            "target": "10.60.204.10:21",
+            "expect": "open",
+            "wait": 30
+          },
+          {
+            "name": "win01:3389 from the networks",
+            "derived": true,
+            "kind": "tcp",
+            "target": "10.60.204.10:3389",
+            "expect": "open",
+            "wait": 30
           }
         ]
       }

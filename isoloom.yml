@@ -10,24 +10,28 @@ version: 1
 name: dvta
 
 # Given by the CyberCTF launcher: this player's flag. Without it the development flag.
-inputs: [CTF_FLAG_MAIN]
+inputs:
+  CTF_FLAG_MAIN: { description: "This player's flag, written into the DVTA database on win01." }
 
 networks:
   lab: { cidr: 10.60.204.0/24 }
 
 machines:
   win01:
+    os: windows-server@2019
     networks: { lab: 10 }
-    services:
-      - { port: 1433, name: sql-server }
-      - { port: 21, name: ftp }
-      - { port: 3389, name: rdp }
+    ports:
+      sql-server: 1433
+      ftp: 21
+      rdp: 3389
     resources: { cpus: 2, memory_mb: 4096 }
-    inputs: [CTF_FLAG_MAIN]
-    vm:
-      os: windows-server-2019
-      # The player's flag, an expense of the admin user in the DVTA database (with the playbook).
-      provision: [provision/flag.ps1]
+    # The player's flag is staged for flag.ps1, which writes it as an expense of the admin user
+    # in the DVTA database (staging C:\ctf\flag.txt for the playbook on a first start).
+    files:
+      - { path: 'C:\Windows\Temp\ctf_flag_main', input: CTF_FLAG_MAIN }
+    app:
+      steps:
+        - run: provision/flag.ps1
 
 provision:
   - ansible: provision/main.yml

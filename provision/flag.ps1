@@ -7,8 +7,12 @@
 # record directly. Plain PowerShell 2.0, as the other Windows labs.
 $ErrorActionPreference = 'Stop'
 $dev = 'FLAG{dev-dvta}'
-$flag = $env:CTF_FLAG_MAIN
+# The launcher delivers the flag as a file (a sensitive input); without it the development flag.
+$seed = 'C:\Windows\Temp\ctf_flag_main'
+$flag = ''
+if (Test-Path $seed) { $flag = ([IO.File]::ReadAllText($seed)).Trim() }
 if (-not $flag) { $flag = $dev }
+if (Test-Path $seed) { Remove-Item -Force $seed -ErrorAction SilentlyContinue }
 $cs = 'Data Source=127.0.0.1\SQLEXPRESS;Initial Catalog=DVTA;User Id=sa;Password=p@ssw0rd;Connect Timeout=5'
 $c = New-Object System.Data.SqlClient.SqlConnection($cs)
 try { $c.Open() } catch { $c = $null }
